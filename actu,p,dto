@@ -1,0 +1,11 @@
+namespace CitasMedicasApi.Dtos;
+
+// PATCH: todos los campos son opcionales; solo se modifica lo que llega.
+public record ActualizarParcialCitaDto(
+    string? Paciente,
+    string? Medico,
+    string? Especialidad,
+    DateTime? Fecha,
+    string? Motivo,
+    string? Estado
+);

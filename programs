@@ -1,0 +1,155 @@
+using CitasMedicasApi.Dtos;
+using CitasMedicasApi.Models;
+using CitasMedicasApi.Validators;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var api = app.MapGroup("/api");
+
+//? Simula una base de datos en memoria
+var citas = new List<Cita>
+{
+    new() { Id = 1, Paciente = "Juan Rodríguez", Medico = "Dra. Ana Gómez", Especialidad = "Cardiología", Fecha = DateTime.Now.AddDays(3), Motivo = "Chequeo general" },
+    new() { Id = 2, Paciente = "María Sánchez", Medico = "Dr. Luis Pérez", Especialidad = "Pediatría", Fecha = DateTime.Now.AddDays(5), Motivo = "Control de crecimiento" },
+    new() { Id = 3, Paciente = "Julián Pérez", Medico = "Dra. Ana Gómez", Especialidad = "Cardiología", Fecha = DateTime.Now.AddDays(7), Motivo = "Dolor en el pecho" },
+};
+var siguienteId = citas.Max(c => c.Id) + 1;
+
+api.MapGet("/", () => new { Message = "Bienvenido a la API de Citas Médicas" });
+
+// ---------- CREATE ----------
+api.MapPost("/cita", (CrearCitaDto dto) =>
+{
+    var errores = new List<string>();
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Paciente, "paciente"));
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Medico, "medico"));
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Especialidad, "especialidad"));
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Motivo, "motivo"));
+    errores.AddRange(CitaValidator.ValidarFecha(dto.Fecha, debeSerFutura: true));
+
+    if (errores.Count > 0)
+        return Results.BadRequest(new { Message = "Datos inválidos", Errores = errores });
+
+    var nueva = new Cita
+    {
+        Id = siguienteId++,
+        Paciente = dto.Paciente!.Trim(),
+        Medico = dto.Medico!.Trim(),
+        Especialidad = dto.Especialidad!.Trim(),
+        Fecha = dto.Fecha,
+        Motivo = dto.Motivo!.Trim(),
+        Estado = EstadosCita.Programada
+    };
+    citas.Add(nueva);
+
+    return Results.Created($"/api/cita/{nueva.Id}", nueva);
+});
+
+// ---------- READ (todas) ----------
+api.MapGet("/citas", () => Results.Ok(citas));
+
+// ---------- READ (por id) ----------
+api.MapGet("/cita/{id:int}", (int id) =>
+{
+    var cita = citas.FirstOrDefault(c => c.Id == id);
+    return cita is null
+        ? Results.NotFound(new { Message = $"No existe una cita con id {id}" })
+        : Results.Ok(cita);
+});
+
+// ---------- READ (filtros opcionales) ----------
+// Ej: GET /api/cita?paciente=juan&especialidad=cardiologia&estado=programada
+api.MapGet("/cita", (string? paciente, string? medico, string? especialidad, string? estado) =>
+{
+    var resultado = citas.AsEnumerable();
+
+    if (!string.IsNullOrWhiteSpace(paciente))
+        resultado = resultado.Where(c => c.Paciente.Contains(paciente, StringComparison.OrdinalIgnoreCase));
+    if (!string.IsNullOrWhiteSpace(medico))
+        resultado = resultado.Where(c => c.Medico.Contains(medico, StringComparison.OrdinalIgnoreCase));
+    if (!string.IsNullOrWhiteSpace(especialidad))
+        resultado = resultado.Where(c => c.Especialidad.Contains(especialidad, StringComparison.OrdinalIgnoreCase));
+    if (!string.IsNullOrWhiteSpace(estado))
+        resultado = resultado.Where(c => c.Estado.Equals(estado, StringComparison.OrdinalIgnoreCase));
+
+    var lista = resultado.ToList();
+    return lista.Count == 0
+        ? Results.NotFound(new { Message = "No se encontraron citas con esos filtros" })
+        : Results.Ok(lista);
+});
+
+// ---------- UPDATE (total) ----------
+api.MapPut("/cita/{id:int}", (int id, ActualizarCitaDto dto) =>
+{
+    var cita = citas.FirstOrDefault(c => c.Id == id);
+    if (cita is null)
+        return Results.NotFound(new { Message = $"No existe una cita con id {id}" });
+
+    var errores = new List<string>();
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Paciente, "paciente"));
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Medico, "medico"));
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Especialidad, "especialidad"));
+    errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Motivo, "motivo"));
+    errores.AddRange(CitaValidator.ValidarFecha(dto.Fecha, debeSerFutura: false));
+    errores.AddRange(CitaValidator.ValidarEstado(dto.Estado));
+
+    if (errores.Count > 0)
+        return Results.BadRequest(new { Message = "Datos inválidos", Errores = errores });
+
+    cita.Paciente = dto.Paciente!.Trim();
+    cita.Medico = dto.Medico!.Trim();
+    cita.Especialidad = dto.Especialidad!.Trim();
+    cita.Fecha = dto.Fecha;
+    cita.Motivo = dto.Motivo!.Trim();
+    cita.Estado = CitaValidator.NormalizarEstado(dto.Estado!);
+
+    return Results.Ok(cita);
+});
+
+// ---------- UPDATE (parcial) ----------
+api.MapPatch("/cita/{id:int}", (int id, ActualizarParcialCitaDto dto) =>
+{
+    var cita = citas.FirstOrDefault(c => c.Id == id);
+    if (cita is null)
+        return Results.NotFound(new { Message = $"No existe una cita con id {id}" });
+
+    var errores = new List<string>();
+    var vacio = dto.Paciente is null && dto.Medico is null && dto.Especialidad is null
+                && dto.Fecha is null && dto.Motivo is null && dto.Estado is null;
+    if (vacio)
+        errores.Add("Debe enviar al menos un campo para modificar.");
+
+    // Solo se validan los campos que llegaron en la petición.
+    if (dto.Paciente is not null) errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Paciente, "paciente"));
+    if (dto.Medico is not null) errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Medico, "medico"));
+    if (dto.Especialidad is not null) errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Especialidad, "especialidad"));
+    if (dto.Motivo is not null) errores.AddRange(CitaValidator.ValidarCampoTexto(dto.Motivo, "motivo"));
+    if (dto.Fecha is not null) errores.AddRange(CitaValidator.ValidarFecha(dto.Fecha.Value, debeSerFutura: false));
+    if (dto.Estado is not null) errores.AddRange(CitaValidator.ValidarEstado(dto.Estado));
+
+    if (errores.Count > 0)
+        return Results.BadRequest(new { Message = "Datos inválidos", Errores = errores });
+
+    if (dto.Paciente is not null) cita.Paciente = dto.Paciente.Trim();
+    if (dto.Medico is not null) cita.Medico = dto.Medico.Trim();
+    if (dto.Especialidad is not null) cita.Especialidad = dto.Especialidad.Trim();
+    if (dto.Fecha is not null) cita.Fecha = dto.Fecha.Value;
+    if (dto.Motivo is not null) cita.Motivo = dto.Motivo.Trim();
+    if (dto.Estado is not null) cita.Estado = CitaValidator.NormalizarEstado(dto.Estado);
+
+    return Results.Ok(cita);
+});
+
+// ---------- DELETE ----------
+api.MapDelete("/cita/{id:int}", (int id) =>
+{
+    var cita = citas.FirstOrDefault(c => c.Id == id);
+    if (cita is null)
+        return Results.NotFound(new { Message = $"No existe una cita con id {id}" });
+
+    citas.Remove(cita);
+    return Results.Ok(new { Message = "Cita eliminada correctamente", Cita = cita });
+});
+
+app.Run("http://localhost:3000");

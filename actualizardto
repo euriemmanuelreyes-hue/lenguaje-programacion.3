@@ -1,0 +1,11 @@
+namespace CitasMedicasApi.Dtos;
+
+// PUT: reemplazo total, todos los campos son obligatorios.
+public record ActualizarCitaDto(
+    string? Paciente,
+    string? Medico,
+    string? Especialidad,
+    DateTime Fecha,
+    string? Motivo,
+    string? Estado
+);

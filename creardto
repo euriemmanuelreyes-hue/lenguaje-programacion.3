@@ -1,0 +1,10 @@
+namespace CitasMedicasApi.Dtos;
+
+// POST: el Id y el Estado los asigna el servidor.
+public record CrearCitaDto(
+    string? Paciente,
+    string? Medico,
+    string? Especialidad,
+    DateTime Fecha,
+    string? Motivo
+);
