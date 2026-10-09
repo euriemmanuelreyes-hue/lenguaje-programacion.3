@@ -1,0 +1,37 @@
+using CitasMedicasApi.Models;
+
+namespace CitasMedicasApi.Validators;
+
+// Reglas de validación en un solo lugar para no duplicarlas en cada endpoint.
+public static class CitaValidator
+{
+    public static List<string> ValidarCampoTexto(string? valor, string nombre)
+    {
+        var errores = new List<string>();
+        if (string.IsNullOrWhiteSpace(valor))
+            errores.Add($"El campo '{nombre}' es obligatorio.");
+        return errores;
+    }
+
+    public static List<string> ValidarFecha(DateTime fecha, bool debeSerFutura)
+    {
+        var errores = new List<string>();
+        if (fecha == default)
+            errores.Add("El campo 'fecha' es obligatorio.");
+        else if (debeSerFutura && fecha <= DateTime.Now)
+            errores.Add("La fecha de la cita debe ser futura.");
+        return errores;
+    }
+
+    public static List<string> ValidarEstado(string? estado)
+    {
+        var errores = new List<string>();
+        if (!EstadosCita.Validos.Contains(estado, StringComparer.OrdinalIgnoreCase))
+            errores.Add($"El estado debe ser uno de: {string.Join(", ", EstadosCita.Validos)}.");
+        return errores;
+    }
+
+    // Devuelve el estado con el formato oficial (ej. "cancelada" -> "Cancelada").
+    public static string NormalizarEstado(string estado) =>
+        EstadosCita.Validos.First(e => e.Equals(estado, StringComparison.OrdinalIgnoreCase));
+}

@@ -1,0 +1,22 @@
+namespace CitasMedicasApi.Models;
+
+/// <summary>Entidad principal: una cita médica.</summary>
+public class Cita
+{
+    public int Id { get; set; }
+    public string Paciente { get; set; } = string.Empty;
+    public string Medico { get; set; } = string.Empty;
+    public string Especialidad { get; set; } = string.Empty;
+    public DateTime Fecha { get; set; }
+    public string Motivo { get; set; } = string.Empty;
+    public string Estado { get; set; } = EstadosCita.Programada;
+}
+
+public static class EstadosCita
+{
+    public const string Programada = "Programada";
+    public const string Completada = "Completada";
+    public const string Cancelada = "Cancelada";
+
+    public static readonly string[] Validos = [Programada, Completada, Cancelada];
+}
